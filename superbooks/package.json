@@ -3,14 +3,26 @@
   "version": "1.0.0",
   "description": "A simple CAP project.",
   "dependencies": {
-    "@sap/cds": "^9"
+    "@cap-js/hana": "^2",
+    "@sap/ams": "^3",
+    "@sap/cds": "^9",
+    "@sap/xssec": "^4"
   },
   "devDependencies": {
     "@cap-js/sqlite": "^2",
+    "@sap/ams-dev": "^2",
     "@sap/cds-dk": "^9"
   },
   "scripts": {
     "start": "cds-serve"
   },
-  "private": true
+  "private": true,
+  "cds": {
+    "requires": {
+      "app-front": true,
+      "[production]": {
+        "auth": "ias"
+      }
+    }
+  }
 }
