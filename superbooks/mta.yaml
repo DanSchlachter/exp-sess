@@ -1,0 +1,143 @@
+_schema-version: 3.3.0
+ID: superbooks
+version: 1.0.0
+description: "A simple CAP project."
+parameters:
+  enable-parallel-deployments: true
+  deploy_mode: html5-repo
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
+modules:
+  - name: superbooks-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+      routes:
+        - route: "${default-url}"
+        - route: "${default-host}.cert.${default-domain}"
+    build-parameters:
+      builder: npm-ci
+    provides:
+      - name: srv-api # required by consumers of CAP services (e.g. approuter)
+        properties:
+          srv-url: ${default-url}
+          srv-cert-url: '${protocol}://${default-host}.cert.${default-domain}'
+    requires:
+      - name: superbooks-auth
+      - name: superbooks-ias
+        parameters:
+          config:
+            credential-type: X509_GENERATED
+            app-identifier: srv
+      - name: superbooks-db
+
+  - name: superbooks-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: superbooks-db
+
+  - name: superbooks-app-deployer
+    type: com.sap.application.content
+    path: gen
+    build-parameters:
+      build-result: app/
+      requires:
+        - name: superbooksadminbooks
+          artifacts:
+            - admin-books.zip
+          target-path: app/
+        - name: superbooksbrowse
+          artifacts:
+            - browse.zip
+          target-path: app/
+    requires:
+      - name: srv-api
+      - name: superbooks-auth
+      - name: superbooks-app-front
+        parameters:
+          content-target: true
+    parameters:
+      config:
+        destinations:
+          - name: srv-api
+            url: ~{srv-api/srv-url}
+            forwardAuthToken: true
+          - name: ui5
+            url: https://ui5.sap.com
+
+  - name: superbooksadminbooks
+    type: html5
+    path: app/admin-books
+    build-parameters:
+      build-result: dist
+      builder: custom
+      commands:
+        - npm ci
+        - npm run build
+      supported-platforms:
+        []
+  - name: superbooksbrowse
+    type: html5
+    path: app/browse
+    build-parameters:
+      build-result: dist
+      builder: custom
+      commands:
+        - npm ci
+        - npm run build
+      supported-platforms:
+        []
+
+resources:
+  - name: superbooks-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: superbooks-${org}-${space}
+        tenant-mode: dedicated
+        oauth2-configuration:
+          credential-types:
+            - "binding-secret"
+            - "x509"
+        role-collections:
+          - name: 'admin (superbooks ${org}-${space})'
+            description: 'generated'
+            role-template-references:
+              - '$XSAPPNAME.admin'
+  - name: superbooks-ias
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: identity
+      service-name: superbooks-ias
+      service-plan: application
+      config:
+        provided-apis:
+          - name: superbooks-ias-api
+            description: API exposed by the application
+        display-name: superbooks
+        oauth2-configuration:
+          token-policy:
+            access-token-format: "jwt"
+        xsuaa-cross-consumption: true
+  - name: superbooks-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: superbooks-app-front
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: app-front
+      service-plan: developer
