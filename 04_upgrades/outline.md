@@ -51,6 +51,8 @@
 - Core packages: `@sap/cds`, `@sap/cds-dk` (CLI), `@sap/cds-compiler`
 - Database plugins: `@cap-js/sqlite`, `@cap-js/hana`, `@cap-js/postgres`
 - Optional capability plugins: `@cap-js/audit-logging`, `@cap-js/change-tracking`, `@cap-js/notifications`
+- `@cap-js/*` plugins register themselves automatically via `cds-plugin` — no wiring needed; new capabilities unlocked just by adding a package
+- `cds add` — scaffolding new capabilities into an existing project
 - The rule: `@sap/cds-dk` (global) and `@sap/cds` (local) major versions must stay in sync
 - Pinned vs. caret ranges in `package.json` — why `^` matters
 
@@ -98,7 +100,32 @@
 
 ---
 
-## 9. Testing — Your Safety Net (~5 min)
+## 9. When Things Break — Diagnosis & Recovery (~5 min)
+
+### Where breaks typically surface
+- **`npm install` fails** — peer dependency conflicts between `@sap/cds` and `@sap/cds-dk` major versions; or a plugin not yet compatible with the new major
+- **`cds watch` doesn't start** — module not found (removed/renamed package), CDS compiler error in a model file, incompatible Node.js version
+- **App starts but requests fail** — runtime behaviour change (e.g. `req.params` structure, auth handling); a deprecated API that was silently removed
+- **Tests fail but app runs** — test helper API changed (e.g. `cds.test` moved to `@cap-js/cds-test` in cds 9)
+- **Silent data issues** — new default feature (e.g. Event Queues) changes how events are processed without an obvious error
+
+### Diagnosis toolkit
+- Read the error message fully — CAP errors usually name the exact module or API that changed
+- `cds version` — confirm the versions that are actually loaded, not just what's in `package.json`
+- `DEBUG=cds:* cds watch` — verbose runtime output to trace what CAP is loading and where it fails
+- `cds env --profile production` — check if an unexpected config is active
+- Check the release notes migration section for the exact major version you jumped to
+- Use the `cap-troubleshooting` skill in OpenCode to walk through a structured diagnosis
+
+### Recovery options
+- `@sap/cds-attic` — re-enables removed deprecated features temporarily while you fix the root cause
+- Clean reinstall: `rm -rf node_modules package-lock.json && npm install` — rules out stale dependency trees
+- Pin back to the previous major temporarily: `npm install @sap/cds@8` while you work through breaking changes one by one
+
+---
+
+## 10. Testing — Your Safety Net (~5 min)
+
 
 - Why tests are critical before (or immediately after) a major upgrade
 - What to cover: server startup, CRUD on main entities, custom handlers, auth scenarios
@@ -107,16 +134,7 @@
 
 ---
 
-## 10. The Plugin Ecosystem & Staying Current (~4 min)
-- `@cap-js/*` plugins register themselves automatically via `cds-plugin` — no wiring needed
-- New capabilities unlocked just by adding a package (change tracking, audit log, notifications)
-- `cds add` — scaffolding new capabilities into an existing project
-
----
-
 ## 11. Live Demo / Walkthrough (~5 min)
-
-Setup: clone the incidents-app and check out the last cds 8 commit before the upgrade to cds 9
 
 ```sh
 git clone https://github.com/cap-js/incidents-app.git demo-app
